@@ -1,0 +1,21 @@
+# Laptop / desktop GPU with 8 GB (e.g. RTX 5050). Smaller models everywhere;
+# expect lower absolute scores - compare configurations, not paper numbers.
+data:
+  corpus_size: 1500
+kg:
+  llm: Qwen/Qwen3-4B-AWQ
+  quantization: null                  # vLLM detects AWQ checkpoints itself
+  max_model_len: 2048
+  gpu_memory_utilization: 0.85
+grasp:
+  filter_llm: Qwen/Qwen3-4B-AWQ
+  filter_max_model_len: 4096
+generation:
+  model: Qwen/Qwen2.5-Omni-3B
+  max_model_len: 4096
+  max_num_seqs: 4
+  gpu_memory_utilization: 0.9
+judge:
+  model: casperhansen/llama-3-8b-instruct-awq
+  max_model_len: 3072
+  gpu_memory_utilization: 0.9

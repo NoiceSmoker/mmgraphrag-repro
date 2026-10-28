@@ -1,0 +1,10 @@
+third_party/
+work/
+.envs/
+results/*/
+results/wandb_links.*
+wandb/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/

@@ -1,0 +1,16 @@
+# MM-Embed corpus / query encoding (official step 8 and queryset embedder).
+# transformers is pinned to the version of the official "lilac-mmembed" env:
+# the MM-Embed remote code is not compatible with transformers 5.x.
+transformers==4.46.3
+accelerate>=1.0
+peft>=0.12
+einops>=0.8
+sentencepiece>=0.2
+datasets>=2.20
+opencv-python-headless>=4.9
+faiss-cpu>=1.8
+numpy>=1.26
+pillow>=10.4
+pyyaml>=6.0
+tqdm>=4.66
+huggingface_hub[hf_transfer]>=0.30,<1.0

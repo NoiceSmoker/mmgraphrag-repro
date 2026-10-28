@@ -1,0 +1,14 @@
+# vLLM-served models: Qwen2.5-VL (graph construction), Qwen2.5 decomposers,
+# Qwen3 KG agents, Qwen2.5-Omni generator, Llama-3 judge.
+# vLLM brings its own torch/transformers; override the spec with VLLM_SPEC to pin.
+qwen-vl-utils>=0.0.10
+pillow>=10.4
+numpy>=1.26
+pandas>=2.2
+pyyaml>=6.0
+soundfile>=0.12
+librosa>=0.10
+datasets>=3.0
+requests>=2.31
+tqdm>=4.66
+wandb>=0.19

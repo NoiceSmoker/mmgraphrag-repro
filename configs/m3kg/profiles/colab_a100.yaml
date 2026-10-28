@@ -1,0 +1,7 @@
+# Colab Pro, A100 40 GB: larger corpus and longer contexts.
+data:
+  corpus_size: 8000
+kg:
+  gpu_memory_utilization: 0.9
+generation:
+  max_num_seqs: 32

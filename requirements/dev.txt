@@ -1,0 +1,12 @@
+# Unit tests (CPU only, no models are downloaded)
+pytest>=8
+numpy>=1.26
+pandas>=2.2
+pyyaml>=6.0
+faiss-cpu>=1.8
+torch
+wandb>=0.19
+wandb-workspaces>=0.1
+nbformat
+pyarrow>=15
+requests>=2.31

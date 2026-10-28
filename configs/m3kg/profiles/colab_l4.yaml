@@ -1,0 +1,4 @@
+# Colab Pro, NVIDIA L4 24 GB (default profile). All models fit in bf16 / AWQ.
+generation:
+  model: Qwen/Qwen2.5-Omni-7B
+  gpu_memory_utilization: 0.92

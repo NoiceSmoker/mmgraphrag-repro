@@ -1,0 +1,66 @@
+# Scaled-down reproduction of M3KG-RAG on Audio-QA (AudioCaps-QA).
+# Values marked (paper) follow Sec. 4.1 / supplementary A of the paper.
+paths:
+  work_dir: work/m3kg                 # point this at Google Drive on Colab to survive VM resets
+  # cache_db: defaults to <work_dir>/cache.sqlite
+
+data:
+  corpus_dataset: OpenSound/AudioCaps # AudioCaps with audio; the KG is built from the TRAIN split (paper)
+  corpus_split: train
+  corpus_size: 3000                   # scaled down from ~45k clips (budget); raise if you have time
+  shuffle_buffer: 10000
+  seed: 0
+  test_dataset: AudioLLMs/audiocaps_qa_test   # AudioCaps-QA (AudioBench) = paper's Audio-QA benchmark
+  test_split: test
+  test_audio_column: context
+  test_question_column: instruction
+  test_answer_column: answer
+  test_limit: null                    # null = all questions
+  leakage_cos: 0.98                   # drop corpus clips that near-duplicate a test clip
+
+kg:
+  llm: Qwen/Qwen3-8B                  # single backbone for all agents (paper: Qwen3-8B)
+  max_model_len: 4096
+  gpu_memory_utilization: 0.85
+  quantization: null
+  rewriter: true                      # used only if the optional 'youtube' stage produced metadata
+  max_candidates: 5
+  inspector_threshold: 7              # (paper) re-run below 7
+  inspector_max_rounds: 3             # (paper) at most three iterations
+  kb_threads: 8
+
+retrieval:
+  clap_model: laion/larger_clap_general
+  k: 5                                # (paper) top-k audio items
+  hub_top_frac: 0.01                  # concepts in the top 1% by degree are not expanded
+  hub_max_degree: null
+
+grasp:
+  grounding: tag                      # tag | clap_window
+  tag_model: wsntxxn/cnn8rnn-laionclap-audiocapsv2-grounding
+  eta_a: 0.5                          # (paper) AudioCaps-QA presence threshold
+  eta_a_clap_window: 0.25             # only used by the CLAP-window fallback
+  eta_grid: [0.1, 0.3, 0.5, 0.7, 0.9]
+  filter_llm: Qwen/Qwen3-8B           # (paper, supplementary A.2) LLM-based filter
+  filter_max_model_len: 8192
+  gpu_memory_utilization: 0.85
+
+generation:
+  model: Qwen/Qwen2.5-Omni-7B         # (paper) one of the evaluated MLLMs
+  max_tokens: 256
+  max_model_len: 8192
+  max_num_seqs: 16
+  gpu_memory_utilization: 0.9
+
+judge:
+  # AudioBench uses Llama-3-70B-Instruct (AWQ). A 70B judge does not fit a
+  # single Colab GPU, so the default is the 8B model of the same family.
+  model: casperhansen/llama-3-8b-instruct-awq
+  quantization: null                  # vLLM detects AWQ checkpoints itself
+  max_tokens: 512
+  max_model_len: 4096
+  gpu_memory_utilization: 0.88
+  audiobench_dir: third_party/AudioBench   # cloned by scripts/m3kg/pipeline.sh (judge prompt source)
+
+wandb:
+  project: m3kg-rag-repro
