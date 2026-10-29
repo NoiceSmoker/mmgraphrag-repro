@@ -62,3 +62,21 @@ def test_refuses_to_write_when_labels_do_not_match(ds):
     out = subprocess.run([sys.executable, "-m", "mmrag.lilac.qa_from_parquet", "--dataset-dir", str(ds)],
                          capture_output=True, text=True, env={"PYTHONPATH": str(REPO / "src")})
     assert out.returncode != 0 and not (ds / "QAs_dev_labeled.json").exists()
+
+
+def test_real_hf_schema_pairs_and_underscored_titles(ds):
+    """dev.parquet of JoohyungYun/mmcoqa_doc: qid, question, answer (str), evidence [[doc, comp]]."""
+    pd.DataFrame([
+        {"qid": "C_381_0", "question": "Who?", "answer": "Brian McKnight",
+         "evidence": [["Eiffel_Tower", "t_0"], ["Eiffel_Tower", "p_1"]]},
+        {"qid": "C_1_0", "question": "Missing?", "answer": "n/a", "evidence": [["Unknown_Page", "p_0"]]},
+    ]).to_parquet(ds / "dev.parquet")
+    out = subprocess.run([sys.executable, "-m", "mmrag.lilac.qa_from_parquet", "--dataset-dir", str(ds)],
+                         capture_output=True, text=True, env={"PYTHONPATH": str(REPO / "src")})
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert "3 gold evidences, 66.7% found" in out.stdout and "WARNING" in out.stdout
+    data = json.loads((ds / "QAs_dev_labeled.json").read_text())
+    assert data[0]["answers"] == [{"answer": "Brian McKnight"}]
+    assert data[0]["evidences"][0] == {"mmqa_doc_modality": "table", "gold_webpage_title": "Eiffel Tower",
+                                       "gold_component_id": "t_0"}
+    assert data[1]["evidences"][0]["gold_webpage_title"] == "Unknown_Page"   # kept, like the official file

@@ -64,8 +64,15 @@ def _maybe_json(v):
     return v
 
 
+def _norm(name: str) -> str:
+    """Loose document-name key: 'Brian_McKnight' == 'Brian McKnight' == 'brian mcknight'."""
+    import re
+
+    return re.sub(r"\s+", " ", str(name).replace("_", " ")).strip().casefold()
+
+
 def load_documents(doc_dir: Path) -> tuple[dict, dict, dict]:
-    """stem -> {component keys}, title -> stem, (stem, label_id) -> component key."""
+    """stem -> {component keys}, name -> stem (titles and loose keys), (stem, label_id) -> key."""
     comps, title_to_stem, by_label = {}, {}, {}
     for p in sorted(doc_dir.glob("*.json")):
         doc = json.loads(p.read_text())
@@ -76,9 +83,23 @@ def load_documents(doc_dir: Path) -> tuple[dict, dict, dict]:
                 if isinstance(comp, dict) and comp.get("label_id") is not None:
                     by_label[(p.stem, str(comp["label_id"]))] = cid
         comps[p.stem] = keys
-        if doc.get("title"):
-            title_to_stem.setdefault(doc["title"], p.stem)
+        for name in (doc.get("title"), p.stem):
+            if name:
+                title_to_stem.setdefault(str(name), p.stem)
+                title_to_stem.setdefault(_norm(name), p.stem)
     return comps, title_to_stem, by_label
+
+
+def _resolve_stem(title, comps: dict, title_to_stem: dict):
+    if title is None:
+        return None, False
+    title = str(title)
+    if title in comps:
+        return title, False
+    for key in (title, _norm(title)):
+        if key in title_to_stem:
+            return title_to_stem[key], True
+    return title, False
 
 
 def _answers(v) -> list[dict]:
@@ -115,7 +136,7 @@ def convert(records: list[dict], comps: dict, title_to_stem: dict, by_label: dic
     if not (qid_c and q_c and (e_c or flat)):
         raise ValueError(f"unrecognised dev.parquet schema: columns {sorted(cols)}")
     out, stats = [], {"questions": 0, "evidences": 0, "matched": 0, "title_mapped": 0, "via_label_id": 0,
-                      "unmatched_examples": []}
+                      "skipped": 0, "unmatched_examples": []}
     for r in records:
         if e_c:
             evs = _maybe_json(r[e_c]) or []
@@ -130,14 +151,16 @@ def convert(records: list[dict], comps: dict, title_to_stem: dict, by_label: dic
         new_evs = []
         for ev in evs:
             ev = _maybe_json(ev)
+            if isinstance(ev, (list, tuple)) and len(ev) >= 2:   # e.g. ["Brian_McKnight", "t_1"]
+                ev = {"gold_webpage_title": ev[0], "gold_component_id": ev[1],
+                      **({"mmqa_doc_modality": ev[2]} if len(ev) > 2 else {})}
             if not isinstance(ev, dict):
+                stats["skipped"] += 1
                 continue
             title = _first(ev, TITLE_KEYS)
             title = None if title is None else str(title)
-            stem = title
-            if title is not None and title not in comps and title in title_to_stem:
-                stem = title_to_stem[title]
-                stats["title_mapped"] += 1
+            stem, remapped = _resolve_stem(title, comps, title_to_stem)
+            stats["title_mapped"] += int(remapped)
             comp = _first(ev, COMP_KEYS)
             comp = None if comp is None else str(comp)
             if (comp is None or (stem in comps and comp not in comps[stem])) and stem is not None:
@@ -150,7 +173,10 @@ def convert(records: list[dict], comps: dict, title_to_stem: dict, by_label: dic
             ok = stem in comps and comp in comps[stem]
             stats["matched"] += int(ok)
             if not ok and len(stats["unmatched_examples"]) < 5:
-                stats["unmatched_examples"].append({"title": title, "component": comp})
+                ex = {"title": title, "component": comp, "doc_found": stem in comps}
+                if stem in comps:
+                    ex["doc_components"] = sorted(comps[stem])[:12]
+                stats["unmatched_examples"].append(ex)
             new_ev = {"mmqa_doc_modality": modality, "gold_webpage_title": stem,
                       "gold_component_id": comp}
             score = _first(ev, SCORE_KEYS)
@@ -168,26 +194,33 @@ def main() -> None:
     ap.add_argument("--dataset-dir", required=True, help="datasets/<DS> of the official repo")
     ap.add_argument("--parquet", default="dev.parquet")
     ap.add_argument("--out", default="QAs_dev_labeled.json")
-    ap.add_argument("--min-match", type=float, default=0.9, help="minimum share of gold evidences found")
+    ap.add_argument("--min-match", type=float, default=0.5,
+                    help="minimum share of gold evidences found in the documents (below: no file is written)")
     a = ap.parse_args()
 
     import pandas as pd
 
     root = Path(a.dataset_dir)
     df = pd.read_parquet(root / a.parquet)
-    print(f"[qa] {a.parquet}: {len(df)} rows, columns: {list(df.columns)}")
-    print(f"[qa] dtypes: {dict(df.dtypes.astype(str))}")
+    print(f"[qa] {a.parquet}: {len(df)} rows, columns: {list(df.columns)}", flush=True)
     records = json.loads(df.to_json(orient="records"))  # numpy arrays / structs -> plain JSON
     if records:
-        print("[qa] first row:", json.dumps(records[0], ensure_ascii=False)[:1500])
+        print("[qa] first row:", json.dumps(records[0], ensure_ascii=False)[:1500], flush=True)
     comps, title_to_stem, by_label = load_documents(root / "parsed_documents" / "dev")
     print(f"[qa] {len(comps)} documents in parsed_documents/dev")
     out, st = convert(records, comps, title_to_stem, by_label)
     share = st["matched"] / max(st["evidences"], 1)
     print(f"[qa] {st['questions']} questions, {st['evidences']} gold evidences, {share:.1%} found in the documents "
           f"(titles remapped: {st['title_mapped']}, resolved via label_id: {st['via_label_id']})")
+    if st["skipped"]:
+        print(f"[qa] {st['skipped']} evidence entries had an unknown format and were skipped", flush=True)
     if st["unmatched_examples"]:
-        print("[qa] unmatched examples:", st["unmatched_examples"])
+        print("[qa] unmatched examples:", json.dumps(st["unmatched_examples"], ensure_ascii=False), flush=True)
+        print("[qa] some document file names:", sorted(comps)[:10], flush=True)
+    if share < 0.99:
+        print(f"[qa] WARNING: {1 - share:.1%} of the gold evidences point to components that are not in the "
+              "released documents; they stay in the file (as in the official evaluation) and can never be "
+              "retrieved", flush=True)
     if share < a.min_match:
         sys.exit(f"[qa] only {share:.1%} of the gold evidences match the documents - not writing {a.out}")
     (root / a.out).write_text(json.dumps(out, ensure_ascii=False, indent=1))
