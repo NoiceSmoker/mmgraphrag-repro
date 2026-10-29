@@ -19,12 +19,15 @@ pairs=(
   "$REPO/results:results"
 )
 
+# rsync if available (incremental), otherwise a plain recursive copy
+copy_dir() { if command -v rsync >/dev/null 2>&1; then rsync -a --info=stats1 "$1/" "$2/"; else cp -a "$1/." "$2/"; fi; }
+
 case "${1:-}" in
   push)
     for p in "${pairs[@]}"; do src="${p%%:*}"; dst="$DRIVE_DIR/${p#*:}"
-      [[ -e "$src" ]] || continue; mkdir -p "$dst"; rsync -a --info=stats1 "$src/" "$dst/"; done ;;
+      [[ -e "$src" ]] || continue; mkdir -p "$dst"; copy_dir "$src" "$dst"; done ;;
   pull)
     for p in "${pairs[@]}"; do dst="${p%%:*}"; src="$DRIVE_DIR/${p#*:}"
-      [[ -e "$src" ]] || continue; mkdir -p "$dst"; rsync -a --info=stats1 "$src/" "$dst/"; done ;;
+      [[ -e "$src" ]] || continue; mkdir -p "$dst"; copy_dir "$src" "$dst"; done ;;
   *) echo "usage: $0 push|pull" >&2; exit 1 ;;
 esac

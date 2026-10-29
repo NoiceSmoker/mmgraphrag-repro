@@ -41,6 +41,16 @@ in_mmembed() {
   PYTHONPATH="$REPO/src/mmrag/lilac/_site${PYTHONPATH:+:$PYTHONPATH}" in_env mmembed "$@"
 }
 
+# MM-Embed checkpoint where the official loader expects it (models/MM-Embed, ~16.4 GB);
+# snapshot_download only fetches what is missing, so this is cheap after the first call
+ensure_mmembed() {
+  in_env lilac-base python - "$LILAC_ROOT/models/MM-Embed" <<'PY'
+import sys
+from huggingface_hub import snapshot_download
+print("MM-Embed weights ->", snapshot_download("nvidia/MM-Embed", local_dir=sys.argv[1]))
+PY
+}
+
 # corpus and query embeddings must come from the same weights: record and check
 mmembed_meta() {
   in_env lilac-base python - "$DATASET" "$1" <<'PY'
@@ -118,6 +128,7 @@ stage_graph() {
 }
 
 stage_embed() {
+  ensure_mmembed
   mmembed_meta check && mmembed_meta write
   local emb_dir
   emb_dir="$(in_env lilac-base python -c "from mmrag.lilac import official; print(official.embeddings_dir('$DATASET'))")"
@@ -140,6 +151,7 @@ stage_decompose_llm() {
 }
 
 stage_decompose_embed() {
+  ensure_mmembed
   # MM-Embed sub-query embeddings per variant (official queryset embedder; same MM-Embed setting as 'embed')
   mmembed_meta check
   for pair in $DECOMPOSERS; do
@@ -155,6 +167,7 @@ stage_decompose_embed() {
 stage_decompose() { stage_decompose_llm; stage_decompose_embed; }
 
 stage_novlm() {
+  ensure_mmembed
   mmembed_meta check
   in_env lilac-base python -m mmrag.lilac.serialize_novlm --dataset "$DATASET"
   in_mmembed python -m mmrag.lilac.official_steps embed-extra --dataset "$DATASET" \
