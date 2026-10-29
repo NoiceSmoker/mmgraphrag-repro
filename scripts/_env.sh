@@ -14,5 +14,8 @@ in_env() {
   if [[ ! -x "$ENV_ROOT/$env/bin/python" ]]; then
     echo "env '$env' missing in $ENV_ROOT - run scripts/setup_envs.sh $env" >&2; return 1
   fi
-  PATH="$ENV_ROOT/$env/bin:$PATH" VIRTUAL_ENV="$ENV_ROOT/$env" "$@"
+  # The official LILaC scripts import their own package as `src.*` and are run as plain
+  # files (`python3 src/lilac/.../x.py`), so the official repo root must be on PYTHONPATH.
+  PATH="$ENV_ROOT/$env/bin:$PATH" VIRTUAL_ENV="$ENV_ROOT/$env" \
+    PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$LILAC_ROOT" "$@"
 }
