@@ -108,8 +108,12 @@ PY
         --hf_dir "datasets/$DATASET" --out_doc_dir "datasets/$DATASET/parsed_documents/dev" \
         --out_img_dir "datasets/$DATASET/image_components/dev")
   fi
-  # The gold-labelled QA file is not in the official git repo (datasets/ is git-ignored);
-  # look for it anywhere in the snapshot, otherwise print what the snapshot contains.
+  # The gold-labelled QA file is not in the official git repo (datasets/ is git-ignored).
+  # The HF release ships the dev questions as dev.parquet: convert it (and check every gold
+  # evidence against the documents); otherwise look for the file anywhere in the snapshot.
+  if [[ ! -f "$dst/QAs_dev_labeled.json" && -f "$dst/dev.parquet" ]]; then
+    in_env lilac-base python -m mmrag.lilac.qa_from_parquet --dataset-dir "$dst"
+  fi
   in_env lilac-base python - "$dst" <<'PY'
 import shutil, sys
 from pathlib import Path
