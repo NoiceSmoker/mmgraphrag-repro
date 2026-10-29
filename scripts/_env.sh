@@ -7,7 +7,6 @@ export ENV_ROOT="${ENV_ROOT:-$_DEF_ENV_ROOT}"
 export LILAC_ROOT="${LILAC_ROOT:-$REPO/third_party/lilac}"
 export MMRAG_RESULTS_DIR="${MMRAG_RESULTS_DIR:-$REPO/results}"
 export LILAC_CONDA_HOME="/nonexistent"     # official preamble: skip conda, use PATH python
-export HF_HUB_ENABLE_HF_TRANSFER="${HF_HUB_ENABLE_HF_TRANSFER:-1}"
 export TOKENIZERS_PARALLELISM=false
 
 in_env() {

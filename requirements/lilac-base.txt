@@ -6,6 +6,7 @@ beautifulsoup4>=4.12
 faiss-cpu>=1.8
 numpy>=1.26
 pandas>=2.2
+pyarrow>=15   # MMCoQA / MultimodalQA ship as parquet (their load.py)
 pillow>=10.4
 pyyaml>=6.0
 scikit-learn>=1.5
