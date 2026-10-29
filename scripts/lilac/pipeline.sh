@@ -108,6 +108,28 @@ PY
         --hf_dir "datasets/$DATASET" --out_doc_dir "datasets/$DATASET/parsed_documents/dev" \
         --out_img_dir "datasets/$DATASET/image_components/dev")
   fi
+  # The gold-labelled QA file is not in the official git repo (datasets/ is git-ignored);
+  # look for it anywhere in the snapshot, otherwise print what the snapshot contains.
+  in_env lilac-base python - "$dst" <<'PY'
+import shutil, sys
+from pathlib import Path
+dst = Path(sys.argv[1]); target = dst / "QAs_dev_labeled.json"
+skip = {"parsed_documents", "image_components", "pdf_pages"}
+if not target.exists():
+    files = [p for p in dst.rglob("*") if p.is_file() and not skip & set(p.relative_to(dst).parts)
+             and ".cache" not in p.parts]
+    exact = [p for p in files if p.name == target.name]
+    if exact:
+        shutil.copy2(exact[0], target); print(f"QA file: {exact[0]} -> {target}")
+    else:
+        print(f"!! {target.name} is not in the downloaded dataset. Files in {dst} (without documents/images):")
+        for p in sorted(files):
+            print(f"   {p.relative_to(dst)}  ({p.stat().st_size / 1e6:.2f} MB)")
+        readme = dst / "README.md"
+        if readme.exists():
+            print("---- dataset README.md ----")
+            print(readme.read_text(errors="replace")[:5000])
+PY
   (cd "$LILAC_ROOT" && in_env lilac-base bash scripts/validate_dataset.sh "$DATASET")
 }
 
