@@ -26,6 +26,7 @@ import json
 import math
 from pathlib import Path
 
+from mmrag.common.gpu import vllm_dtype
 from mmrag.lilac import official
 
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
@@ -94,7 +95,7 @@ class QwenVL:
 
         self.max_pixels = max_pixels
         self.llm = LLM(model=model, max_model_len=max_model_len, max_num_seqs=max_num_seqs,
-                       gpu_memory_utilization=gpu_memory_utilization,
+                       gpu_memory_utilization=gpu_memory_utilization, dtype=vllm_dtype(),
                        limit_mm_per_prompt={"image": 1},
                        mm_processor_kwargs={"min_pixels": 56 * 56, "max_pixels": max_pixels})
 
@@ -200,6 +201,11 @@ def main() -> None:
     ap.add_argument("--gpu-mem", type=float, default=0.9)
     args = ap.parse_args()
     vl = QwenVL(args.model, args.max_pixels, gpu_memory_utilization=args.gpu_mem)
+    # record which VLM produced the texts (the experiment runs log it to W&B)
+    out = official.artifact_dir(args.dataset)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "vlm_meta.json").write_text(json.dumps({"model": args.model, "dtype": vllm_dtype(),
+                                                   "max_pixels": args.max_pixels, "passes": args.passes}, indent=1))
     for p in args.passes:
         if p == "summarize":
             summarize(vl, args.dataset, args.chunk, max_tokens=2048)

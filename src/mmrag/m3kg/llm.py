@@ -12,6 +12,7 @@ from dataclasses import asdict, dataclass
 from typing import Callable, Protocol
 
 from mmrag.common.cache import KVCache
+from mmrag.common.gpu import vllm_dtype
 from mmrag.common.io import stable_hash
 
 _THINK = re.compile(r"<think>.*?</think>", flags=re.S)
@@ -44,7 +45,7 @@ class VLLMBackend:
         self.enable_thinking = enable_thinking
         self.tok = AutoTokenizer.from_pretrained(model, trust_remote_code=True)
         kw = dict(model=model, max_model_len=max_model_len, gpu_memory_utilization=gpu_memory_utilization,
-                  trust_remote_code=True, max_num_seqs=max_num_seqs)
+                  trust_remote_code=True, max_num_seqs=max_num_seqs, dtype=vllm_dtype())
         if quantization:
             kw["quantization"] = quantization
         self.llm = LLM(**kw)

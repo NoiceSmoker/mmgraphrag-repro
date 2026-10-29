@@ -24,6 +24,7 @@ import shutil
 import time
 from pathlib import Path
 
+from mmrag.common.gpu import vllm_dtype
 from mmrag.common.io import read_json, write_json
 from mmrag.lilac import official
 
@@ -54,7 +55,7 @@ class VLLMChat:
 
         self.tok = AutoTokenizer.from_pretrained(model, trust_remote_code=True)
         kwargs = dict(model=model, max_model_len=max_model_len,
-                      gpu_memory_utilization=gpu_memory_utilization, trust_remote_code=True)
+                      gpu_memory_utilization=gpu_memory_utilization, trust_remote_code=True, dtype=vllm_dtype())
         if quantization:
             kwargs["quantization"] = quantization
         self.llm = LLM(**kwargs)

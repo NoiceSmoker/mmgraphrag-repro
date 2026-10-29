@@ -100,6 +100,10 @@ def main() -> None:
 
         cfg = {**v_run.as_config(), "dataset": args.dataset, "embedder": official.DEFAULT_EMBEDDER,
                "lilac_commit": official.PINNED_COMMIT, "retrieval_jsonl": str(jsonl)}
+        for key in ("vlm_meta", "mmembed_meta"):  # which VLM / MM-Embed weights produced the artefacts
+            meta_file = official.artifact_dir(args.dataset) / f"{key}.json"
+            if meta_file.exists():
+                cfg[key] = read_json(meta_file)
         if v.group == "decomposer" or v.group == "main":
             meta_p = variant_dir(args.dataset, decomposer) / "meta.json"
             if meta_p.exists():

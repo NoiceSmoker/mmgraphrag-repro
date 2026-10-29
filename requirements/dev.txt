@@ -5,7 +5,7 @@ pandas>=2.2
 pyyaml>=6.0
 faiss-cpu>=1.8
 torch
-wandb>=0.19
+wandb>=0.22   # new-format API keys (wandb_v1_...) need a recent client
 wandb-workspaces>=0.1
 nbformat
 pyarrow>=15

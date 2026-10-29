@@ -17,4 +17,4 @@ mosestokenizer
 prettytable
 tabulate
 huggingface_hub[hf_transfer]>=0.30
-wandb>=0.19
+wandb>=0.22   # new-format API keys (wandb_v1_...) need a recent client

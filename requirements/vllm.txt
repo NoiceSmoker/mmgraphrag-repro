@@ -11,4 +11,4 @@ librosa>=0.10
 datasets>=3.0
 requests>=2.31
 tqdm>=4.66
-wandb>=0.19
+wandb>=0.22   # new-format API keys (wandb_v1_...) need a recent client

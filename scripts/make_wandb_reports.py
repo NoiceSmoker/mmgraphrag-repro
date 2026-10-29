@@ -88,8 +88,13 @@ def main() -> None:
     ap.add_argument("--share", action="store_true")
     ap.add_argument("--out", default="results")
     a = ap.parse_args()
-    if not a.entity:
-        raise SystemExit("set --entity or WANDB_ENTITY")
+    if not a.entity:  # default entity of the logged-in API key (usually the user name)
+        import wandb
+
+        a.entity = wandb.Api().default_entity
+        if not a.entity:
+            raise SystemExit("could not determine the W&B entity: set --entity or WANDB_ENTITY")
+        print(f"W&B entity: {a.entity}")
     links = build(a.entity, {"lilac-repro": a.lilac_project, "m3kg-rag-repro": a.m3kg_project}, a.share)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)

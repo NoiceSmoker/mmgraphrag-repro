@@ -1,7 +1,7 @@
 """Bridge to the official LILaC repository.
 
 The reproduction does not fork LILaC: the official code is cloned at a
-pinned commit into ``third_party/lilac`` (see ``scripts/lilac/00_fetch_official.sh``)
+pinned commit into ``third_party/lilac`` (``scripts/lilac/pipeline.sh fetch``)
 and imported from there. Everything in ``mmrag.lilac`` only (a) orchestrates
 the official steps on a single GPU, (b) replaces two slow one-image-at-a-time
 VLM loops with batched vLLM calls that write byte-compatible artefacts, and
@@ -26,7 +26,7 @@ def lilac_root() -> Path:
     root = Path(os.environ.get("LILAC_ROOT", repo_root() / "third_party" / "lilac")).resolve()
     if not (root / "src" / "lilac").is_dir():
         raise FileNotFoundError(
-            f"Official LILaC code not found at {root}. Run scripts/lilac/00_fetch_official.sh "
+            f"Official LILaC code not found at {root}. Run scripts/lilac/pipeline.sh fetch "
             "or set LILAC_ROOT."
         )
     return root

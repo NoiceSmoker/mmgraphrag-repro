@@ -20,6 +20,7 @@ from pathlib import Path
 import pandas as pd
 
 from mmrag.common.cache import KVCache
+from mmrag.common.gpu import vllm_dtype
 from mmrag.common.io import read_json, read_jsonl, stable_hash, write_json, write_jsonl
 from mmrag.m3kg import prompts as P
 from mmrag.m3kg.agents import Agents
@@ -114,7 +115,7 @@ def stage_generate(cfg: dict) -> None:
     if todo:
         llm = LLM(model=gcfg["model"], max_model_len=gcfg.get("max_model_len", 8192),
                   max_num_seqs=gcfg.get("max_num_seqs", 16), limit_mm_per_prompt={"audio": 1},
-                  gpu_memory_utilization=gcfg.get("gpu_memory_utilization", 0.9), seed=0)
+                  gpu_memory_utilization=gcfg.get("gpu_memory_utilization", 0.9), seed=0, dtype=vllm_dtype())
         sp = SamplingParams(temperature=0.0, max_tokens=gcfg.get("max_tokens", 256))
         audio = {q: load_audio(test.loc[q, "path"], 16000, 30.0) for q in {p[1] for p in todo.values()}}
         keys = list(todo)

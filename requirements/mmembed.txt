@@ -14,3 +14,5 @@ pillow>=10.4
 pyyaml>=6.0
 tqdm>=4.66
 huggingface_hub[hf_transfer]>=0.30,<1.0
+# 8-bit / 4-bit MM-Embed on 16 GB GPUs (MMEMBED_QUANT, see src/mmrag/lilac/mmembed_quant.py)
+bitsandbytes>=0.45,<0.49

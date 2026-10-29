@@ -90,3 +90,22 @@ wandb: {{project: m3kg-test}}
     r = json.loads((tr.RESULTS_DIR / "m3kg-test" / "main" / "m3kg_rag.json").read_text())["summary"]
     assert r["MJ"] == pytest.approx(80.0) and r["delta_vs_no_rag/MJ"] == pytest.approx(20.0)
     assert r["ctx/final_mean"] == 1.0 and r["ctx/grounding_removed_pct"] == 50.0
+
+
+def test_vllm_dtype_env_override(monkeypatch):
+    from mmrag.common.gpu import vllm_dtype
+
+    monkeypatch.setenv("VLLM_DTYPE", "half")
+    assert vllm_dtype() == "half"
+    monkeypatch.setenv("VLLM_DTYPE", "")
+    assert vllm_dtype() in {"auto", "half"}   # "half" only on a pre-Ampere GPU
+
+
+def test_t4_profile_overrides():
+    from conftest import REPO
+    from mmrag.m3kg.config import load_config
+
+    cfg = load_config(str(REPO / "configs/m3kg/base.yaml"), str(REPO / "configs/m3kg/profiles/colab_t4.yaml"), [])
+    assert cfg["kg"]["llm"].endswith("-AWQ") and cfg["grasp"]["filter_llm"].endswith("-AWQ")
+    assert cfg["generation"]["model"] == "Qwen/Qwen2.5-Omni-3B"
+    assert cfg["retrieval"]["k"] == 5          # untouched base values survive

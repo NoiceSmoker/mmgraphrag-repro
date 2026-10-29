@@ -1,0 +1,24 @@
+# Free Colab / Kaggle: NVIDIA T4 16 GB (no bfloat16 -> vLLM runs in fp16 automatically,
+# see src/mmrag/common/gpu.py). 4-bit AWQ checkpoints for the 8B agents and a 3B answering
+# MLLM so that every model fits; the judge is the same as in the other profiles.
+# Absolute scores are not comparable with the paper (smaller MLLM) - compare configurations.
+data:
+  corpus_size: 3000
+kg:
+  llm: Qwen/Qwen3-8B-AWQ
+  quantization: null                  # vLLM detects AWQ checkpoints itself
+  max_model_len: 4096
+  gpu_memory_utilization: 0.85
+grasp:
+  filter_llm: Qwen/Qwen3-8B-AWQ
+  filter_max_model_len: 6144
+  gpu_memory_utilization: 0.85
+generation:
+  model: Qwen/Qwen2.5-Omni-3B
+  max_model_len: 6144
+  max_num_seqs: 8
+  gpu_memory_utilization: 0.9
+judge:
+  model: casperhansen/llama-3-8b-instruct-awq
+  max_model_len: 4096
+  gpu_memory_utilization: 0.88
