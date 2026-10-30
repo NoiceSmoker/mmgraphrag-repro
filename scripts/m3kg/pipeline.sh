@@ -13,7 +13,8 @@
 #   ./scripts/m3kg/pipeline.sh report     # metrics + bootstrap CIs -> W&B                     (CPU)
 #
 # Env vars: PROFILE (default configs/m3kg/profiles/colab_l4.yaml), SET (extra --set overrides),
-#           WORK_DIR (overrides paths.work_dir), GROUPS (subset of experiment groups for 'contexts').
+#           WORK_DIR (overrides paths.work_dir), EXP_GROUPS (subset of experiment groups for 'contexts';
+#           not GROUPS, which bash reserves for the user's group ids).
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/_env.sh"
 cd "$REPO"
@@ -33,7 +34,7 @@ stage_kg()       { in_env vllm python -m mmrag.m3kg.build_kg "${ARGS[@]}"; }
 stage_index()    { in_env m3kg-audio python -m mmrag.m3kg.index "${ARGS[@]}"; }
 stage_contexts() {
   # shellcheck disable=SC2086
-  in_env m3kg-audio python -m mmrag.m3kg.contexts "${ARGS[@]}" ${GROUPS:+--groups $GROUPS}
+  in_env m3kg-audio python -m mmrag.m3kg.contexts "${ARGS[@]}" ${EXP_GROUPS:+--groups $EXP_GROUPS}
 }
 stage_filter()   { in_env vllm python -m mmrag.m3kg.vllm_stages filter "${ARGS[@]}"; }
 stage_generate() { in_env vllm python -m mmrag.m3kg.vllm_stages generate "${ARGS[@]}"; }

@@ -80,7 +80,7 @@ Environment variables of `pipeline.sh`:
 |---|---|
 | `DATASET` | `MMCoQA` (`MultimodalQA` also works; much larger) |
 | `DECOMPOSERS` | `qwen2.5-7b=Qwen/Qwen2.5-7B-Instruct qwen2.5-14b-awq=Qwen/Qwen2.5-14B-Instruct-AWQ qwen2.5-32b-awq=Qwen/Qwen2.5-32B-Instruct-AWQ` (first = main) |
-| `GROUPS` | `main ablation sens_beam sens_iter decomposer` |
+| `EXP_GROUPS` | `main ablation sens_beam sens_iter decomposer` |
 | `VLM_MODEL` | `Qwen/Qwen2.5-VL-7B-Instruct` (official); `Qwen/Qwen2.5-VL-7B-Instruct-AWQ` on a T4 |
 | `MMEMBED_QUANT` | unset = official fp16; `8bit` / `4bit` = bitsandbytes weights for 16 GB GPUs |
 | `MMEMBED_BATCH_SCALE` | `1` (factor on the official embedding batch sizes; halved automatically on OOM) |

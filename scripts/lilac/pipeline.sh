@@ -19,14 +19,14 @@
 #   MMEMBED_QUANT 8bit | 4bit: load MM-Embed with bitsandbytes weights so that it fits a 16 GB T4
 #                 (default: official fp16, needs >= 20 GB). Must be the same for every MM-Embed stage.
 #   MMEMBED_BATCH_SCALE  factor for the official embedding batch sizes (default 1; halved on OOM anyway)
-#   GROUPS        experiment groups for the last stage
+#   EXP_GROUPS    experiment groups for the last stage (not GROUPS: that is a read-only bash variable)
 #   WANDB_PROJECT / WANDB_ENTITY  W&B destination (project default: lilac-repro)
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/_env.sh"
 
 DATASET="${DATASET:-MMCoQA}"
 DECOMPOSERS="${DECOMPOSERS:-qwen2.5-7b=Qwen/Qwen2.5-7B-Instruct qwen2.5-14b-awq=Qwen/Qwen2.5-14B-Instruct-AWQ qwen2.5-32b-awq=Qwen/Qwen2.5-32B-Instruct-AWQ}"
-GROUPS="${GROUPS:-main ablation sens_beam sens_iter decomposer}"
+EXP_GROUPS="${EXP_GROUPS:-main ablation sens_beam sens_iter decomposer}"
 VLM_MODEL="${VLM_MODEL:-Qwen/Qwen2.5-VL-7B-Instruct}"
 HF_REPO_MMCOQA="${HF_REPO_MMCOQA:-JoohyungYun/mmcoqa_doc}"
 HF_REPO_MMQA="${HF_REPO_MMQA:-JoohyungYun/multimodalqa_doc}"
@@ -239,7 +239,7 @@ stage_novlm() {
 stage_experiments() {
   # shellcheck disable=SC2086
   in_env lilac-base python -m mmrag.lilac.run_experiments --dataset "$DATASET" \
-      --groups $GROUPS --main-decomposer "$(main_tag)" --decomposers $(all_tags) \
+      --groups $EXP_GROUPS --main-decomposer "$(main_tag)" --decomposers $(all_tags) \
       --project "${WANDB_PROJECT:-lilac-repro}"
 }
 
