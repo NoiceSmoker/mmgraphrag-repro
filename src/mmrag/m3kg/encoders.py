@@ -98,7 +98,12 @@ class TAGScorer:
         """Presence score in [0, 1] for each phrase (max over time)."""
         import torch
 
-        wav = torch.from_numpy(load_audio(audio_path, self.sr)).to(self.device)
+        return self.score_wave(torch.from_numpy(load_audio(audio_path, self.sr)), phrases, batch)
+
+    def score_wave(self, wav, phrases: list[str], batch: int = 64) -> np.ndarray:
+        import torch
+
+        wav = wav.to(self.device)
         scores = []
         for i in range(0, len(phrases), batch):
             chunk = phrases[i : i + batch]
@@ -134,7 +139,17 @@ def make_grounder(cfg: dict, clap: ClapEncoder):
     g = cfg["grasp"]
     if g.get("grounding", "tag") == "tag":
         try:
-            return TAGScorer(g["tag_model"])
+            import torch
+
+            tag = TAGScorer(g["tag_model"])
+            # smoke test of the remote-code forward pass on 2 s of silence, so that an interface
+            # change fails here (with a clear fallback) and not halfway through the stage
+            out = tag.score_wave(torch.zeros(2 * tag.sr), ["a dog barks", "rain falls"])
+            if out.shape != (2,) or not np.isfinite(out).all():
+                raise RuntimeError(f"unexpected TAG output {out!r}")
+            print(f"[grasp] TAG grounding model ready ({g['tag_model']}, {tag.sr} Hz)")
+            return tag
         except Exception as exc:  # remote code / version mismatch
-            print(f"[grasp] TAG model unavailable ({exc}); falling back to CLAP windows")
+            print(f"[grasp] WARNING: TAG model unusable ({type(exc).__name__}: {exc}); "
+                  "falling back to CLAP-window grounding (recorded as grounding_backend=clap_window)")
     return ClapWindowScorer(clap)
