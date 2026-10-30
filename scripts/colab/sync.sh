@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Persist / restore pipeline artefacts on Google Drive between Colab sessions.
 #
-#   ./scripts/colab/sync.sh push     # VM -> Drive   (run after every finished stage)
-#   ./scripts/colab/sync.sh pull     # Drive -> VM   (run at the start of a new session)
+#   ./scripts/colab/sync.sh push [lilac|m3kg|all]   # VM -> Drive   (after every finished stage)
+#   ./scripts/colab/sync.sh pull [lilac|m3kg|all]   # Drive -> VM   (at the start of a new session)
 #
 # Work happens on the VM's local disk (fast, safe for SQLite); Drive only
 # stores copies. DRIVE_DIR defaults to /content/drive/MyDrive/mmgraphrag-repro-cache.
@@ -11,13 +11,24 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/_env.sh"
 DRIVE_DIR="${DRIVE_DIR:-/content/drive/MyDrive/mmgraphrag-repro-cache}"
 DATASET="${DATASET:-MMCoQA}"
 
-pairs=(
+SCOPE="${2:-all}"   # lilac | m3kg | results | all - each notebook only moves its own artefacts
+lilac_pairs=(
   "$LILAC_ROOT/datasets/$DATASET:lilac/datasets/$DATASET"
   "$LILAC_ROOT/artifacts/$DATASET:lilac/artifacts/$DATASET"
   "$LILAC_ROOT/algorithm_results:lilac/algorithm_results"
-  "$REPO/work:work"
-  "$REPO/results:results"
+  "$REPO/results/lilac-repro:results/lilac-repro"
 )
+m3kg_pairs=(
+  "$REPO/work:work"
+  "$REPO/results/m3kg-rag-repro:results/m3kg-rag-repro"
+)
+case "$SCOPE" in
+  lilac) pairs=("${lilac_pairs[@]}") ;;
+  m3kg)  pairs=("${m3kg_pairs[@]}") ;;
+  results) pairs=("$REPO/results:results") ;;
+  all)   pairs=("${lilac_pairs[@]}" "${m3kg_pairs[@]}" "$REPO/results:results") ;;
+  *) echo "scope must be lilac, m3kg, results or all" >&2; exit 1 ;;
+esac
 
 # rsync if available (incremental), otherwise a plain recursive copy
 copy_dir() { if command -v rsync >/dev/null 2>&1; then rsync -a --info=stats1 "$1/" "$2/"; else cp -a "$1/." "$2/"; fi; }
@@ -29,5 +40,5 @@ case "${1:-}" in
   pull)
     for p in "${pairs[@]}"; do dst="${p%%:*}"; src="$DRIVE_DIR/${p#*:}"
       [[ -e "$src" ]] || continue; mkdir -p "$dst"; copy_dir "$src" "$dst"; done ;;
-  *) echo "usage: $0 push|pull" >&2; exit 1 ;;
+  *) echo "usage: $0 push|pull [lilac|m3kg|results|all]" >&2; exit 1 ;;
 esac

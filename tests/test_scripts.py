@@ -39,3 +39,33 @@ def test_wandb_report_objects_build(monkeypatch):
     monkeypatch.setattr(wr.Report, "url", property(lambda self: f"https://wandb.ai/r/{len(saved)}"))
     links = make_wandb_reports.build("me", {}, share=False)
     assert len(links) == len(make_wandb_reports.SECTIONS) == len(saved)
+    only = make_wandb_reports.build("me", {}, share=False, only="m3kg")
+    assert set(only) == {m for m, p, *_ in make_wandb_reports.SECTIONS if p.startswith("m3kg")}
+
+
+def test_colab_sync_scopes(tmp_path):
+    """Each notebook moves only its own artefacts to Drive."""
+    import os
+    import subprocess
+
+    from conftest import REPO
+
+    lilac = tmp_path / "lilac"
+    (lilac / "artifacts" / "MMCoQA").mkdir(parents=True)
+    (lilac / "artifacts" / "MMCoQA" / "a.txt").write_text("a")
+    work = REPO / "work"
+    made_work = not work.exists()
+    env = dict(os.environ, LILAC_ROOT=str(lilac), DRIVE_DIR=str(tmp_path / "drive"),
+               MMRAG_RESULTS_DIR=str(tmp_path / "res"))
+    try:
+        out = subprocess.run(["bash", str(REPO / "scripts/colab/sync.sh"), "push", "lilac"], env=env,
+                             capture_output=True, text=True)
+        assert out.returncode == 0, out.stderr
+        assert (tmp_path / "drive/lilac/artifacts/MMCoQA/a.txt").read_text() == "a"
+        assert not (tmp_path / "drive/work").exists()
+        bad = subprocess.run(["bash", str(REPO / "scripts/colab/sync.sh"), "push", "nope"], env=env,
+                             capture_output=True, text=True)
+        assert bad.returncode != 0
+    finally:
+        if made_work and work.exists():
+            work.rmdir()

@@ -58,7 +58,8 @@ export HF_TOKEN=<token>                  # only needed for gated models / higher
 Pipeline scripts select the right environment for every stage automatically.
 
 **Colab:** open `notebooks/lilac_colab.ipynb` or `notebooks/m3kg_colab.ipynb`; they run the same commands as
-below cell by cell and use `scripts/colab/sync.sh push|pull` to keep artefacts on Google Drive between sessions.
+below cell by cell and use `scripts/colab/sync.sh push|pull lilac|m3kg` to keep artefacts on Google Drive between
+sessions. Both notebooks can be started with *Run all*: a failing command stops the notebook, and re-running skips finished work.
 
 ## 3. LILaC (MMCoQA)
 

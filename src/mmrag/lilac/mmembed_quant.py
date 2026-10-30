@@ -1,4 +1,9 @@
-"""Low-memory MM-Embed for 16 GB GPUs (e.g. the T4 of free Colab).
+"""Guarded and optionally low-memory MM-Embed loading for the official LILaC code.
+
+Guard (``MMEMBED_GUARD=1``, set by ``scripts/lilac/pipeline.sh`` for every
+MM-Embed stage): keeps the official fp16 loader but protects the official
+encoder against silent failures (see below). Quantization (``MMEMBED_QUANT``)
+additionally replaces the loader, for 16 GB GPUs such as the T4 of free Colab:
 
 MM-Embed is about 16.4 GB in fp16, and the official loader
 (``src.models.embedder.mmembed.MMEmbed.load_model``) first builds the whole
@@ -54,10 +59,16 @@ def quant_mode() -> str | None:
     raise ValueError(f"MMEMBED_QUANT={v!r}: use 8bit, 4bit or fp16")
 
 
+def guard_enabled() -> bool:
+    """True if the hook should be installed (guard requested or quantization on)."""
+    v = os.environ.get("MMEMBED_GUARD", "").strip().lower()
+    return v in ("1", "true", "yes", "on") or quant_mode() is not None
+
+
 def describe() -> dict:
     """What gets recorded next to the embeddings and logged with every run."""
     mode = quant_mode()
-    return {"mmembed_weights": mode or "fp16",
+    return {"mmembed_weights": mode or "fp16", "guard": guard_enabled(),
             "kept_fp16": KEEP_FP16 if mode else [],
             "batch_scale": float(os.environ.get("MMEMBED_BATCH_SCALE", "1") or 1)}
 
@@ -128,7 +139,6 @@ def load_model_quantized(self) -> None:
     )
     finalize_devices(self.model, device)
     self.model.eval()
-    self.model.encode = oom_safe_encode(self.model.encode)
     gb = torch.cuda.memory_allocated(device) / 2**30
     print(f"{_TAG} model loaded ({gb:.1f} GiB on GPU)", flush=True)
 
@@ -185,7 +195,14 @@ def patch_module(module) -> None:
     cls = getattr(module, "MMEmbed", None)
     if cls is None or getattr(cls, "_mmrag_patched", False):
         return
-    cls.load_model = load_model_quantized
+    loader = load_model_quantized if quant_mode() else cls.load_model   # official fp16 loader otherwise
+
+    def load_model(self):
+        loader(self)
+        self.model.encode = oom_safe_encode(self.model.encode)   # official encoder zero-fills failed batches
+
+    load_model.__mmrag_loader__ = loader.__name__
+    cls.load_model = load_model
     if hasattr(cls, "encode_corpus"):
         cls.encode_corpus = _wrap_encode_corpus(cls.encode_corpus)
     cls._mmrag_patched = True
@@ -217,8 +234,8 @@ class _PatchingFinder(importlib.abc.MetaPathFinder):
 
 
 def install() -> bool:
-    """Install the hook if MMEMBED_QUANT asks for it. Safe to call repeatedly."""
-    if quant_mode() is None:
+    """Install the hook if MMEMBED_GUARD or MMEMBED_QUANT asks for it. Safe to call repeatedly."""
+    if not guard_enabled():
         return False
     if TARGET_MODULE in sys.modules:  # imported before the hook: patch in place
         patch_module(sys.modules[TARGET_MODULE])

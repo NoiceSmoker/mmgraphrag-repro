@@ -37,7 +37,7 @@ import json, multiprocessing as mp, sys
 
 def child(q):
     from src.models.embedder.mmembed import MMEmbed
-    q.put(MMEmbed.load_model.__name__)
+    q.put(getattr(MMEmbed.load_model, "__mmrag_loader__", MMEmbed.load_model.__name__))
 
 if __name__ == "__main__":
     from src.models.embedder.mmembed import MMEmbed
@@ -45,14 +45,15 @@ if __name__ == "__main__":
     enc.encode_corpus(data=[], max_length=8, batch_size=32, out_embeddings_path="x", out_index_path="y")
     used_bs = enc.used_batch_size
     try:
-        enc.load_model()                      # patched: fails later (no transformers model here)
+        enc.load_model()                      # quantized: fails later (no real model); guard: official loader
     except Exception as exc:
-        assert "official fp16 loader" not in str(exc), exc
+        print("LOAD:", exc)
     mp.set_start_method("spawn", force=True)
     q = mp.Queue()
     p = mp.Process(target=child, args=(q,))
     p.start(); p.join()
-    print(json.dumps({"parent": MMEmbed.load_model.__name__, "child": q.get(), "batch": used_bs}))
+    print(json.dumps({"parent": getattr(MMEmbed.load_model, "__mmrag_loader__", MMEmbed.load_model.__name__),
+                      "child": q.get(), "batch": used_bs}))
 '''
 
 
@@ -67,15 +68,19 @@ def fake_official(tmp_path):
     return tmp_path
 
 
-def _run(fake_official, quant):
+def _run(fake_official, quant, guard=False):
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join([str(REPO / "src" / "mmrag" / "lilac" / "_site"), str(REPO / "src"),
                                          str(fake_official)])
     env.pop("MMEMBED_QUANT", None)
     env["HF_HUB_OFFLINE"] = "1"            # the patched loader must not reach the network in tests
+    env.pop("MMEMBED_GUARD", None)
+    if guard:
+        env["MMEMBED_GUARD"] = "1"
+    if quant or guard:
+        env["MMEMBED_BATCH_SCALE"] = "0.5"
     if quant:
         env["MMEMBED_QUANT"] = quant
-        env["MMEMBED_BATCH_SCALE"] = "0.5"
     out = subprocess.run([sys.executable, "driver.py"], cwd=fake_official, env=env, capture_output=True,
                          text=True, timeout=120)
     return out
@@ -92,7 +97,10 @@ def test_hook_reaches_spawn_workers_and_scales_batches(fake_official):
 
 def test_no_hook_without_env(fake_official):
     out = _run(fake_official, None)
-    assert out.returncode != 0 and "official fp16 loader called" in out.stderr  # official code untouched
+    assert out.returncode == 0, out.stderr
+    res = json.loads(out.stdout.strip().splitlines()[-1])
+    assert "LOAD: official fp16 loader called" in out.stdout       # official code untouched
+    assert res["batch"] == 32 and "zero vectors" not in out.stdout
 
 
 def test_quant_mode_parsing(monkeypatch):
@@ -142,3 +150,12 @@ def test_oom_safe_encode_splits_and_keeps_order():
     assert calls[0] == 7 and all(c <= 2 for c in calls[1:] if c not in (7, 3, 4))
     with pytest.raises(torch.cuda.OutOfMemoryError):
         mq.oom_safe_encode(lambda inputs, **k: (_ for _ in ()).throw(torch.cuda.OutOfMemoryError("x")))([1])
+
+
+def test_guard_keeps_official_loader_but_scales_batches(fake_official):
+    out = _run(fake_official, None, guard=True)
+    assert out.returncode == 0, out.stderr
+    res = json.loads(out.stdout.strip().splitlines()[-1])
+    assert res["parent"] == res["child"] == "load_model"        # official loader, wrapped
+    assert "LOAD: official fp16 loader called" in out.stdout
+    assert res["batch"] == 16 and "1 of 16 embeddings are zero vectors" in out.stdout

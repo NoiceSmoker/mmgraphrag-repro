@@ -49,9 +49,11 @@ SECTIONS = [
 ]
 
 
-def build(entity: str, project_override: dict[str, str], share: bool) -> dict[str, str]:
+def build(entity: str, project_override: dict[str, str], share: bool, only: str | None = None) -> dict[str, str]:
     links = {}
     for macro, project, group, title, metrics, scatter in SECTIONS:
+        if only and not project.startswith({"lilac": "lilac", "m3kg": "m3kg"}[only]):
+            continue
         project = project_override.get(project, project)
         runset = wr.Runset(entity=entity, project=project, name=group,
                            filters=f"Metric('Group') == '{group}'")
@@ -87,6 +89,8 @@ def main() -> None:
     ap.add_argument("--m3kg-project", default="m3kg-rag-repro")
     ap.add_argument("--share", action="store_true")
     ap.add_argument("--out", default="results")
+    ap.add_argument("--only", choices=["lilac", "m3kg"], default=None,
+                    help="only the reports of one paper (links are merged into the existing JSON)")
     a = ap.parse_args()
     if not a.entity:  # default entity of the logged-in API key (usually the user name)
         import wandb
@@ -95,11 +99,14 @@ def main() -> None:
         if not a.entity:
             raise SystemExit("could not determine the W&B entity: set --entity or WANDB_ENTITY")
         print(f"W&B entity: {a.entity}")
-    links = build(a.entity, {"lilac-repro": a.lilac_project, "m3kg-rag-repro": a.m3kg_project}, a.share)
+    links = build(a.entity, {"lilac-repro": a.lilac_project, "m3kg-rag-repro": a.m3kg_project}, a.share, a.only)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "wandb_links.json").write_text(json.dumps(links, indent=2))
-    print(f"wrote {out / 'wandb_links.json'} (scripts/export_results.py turns it into LaTeX macros)")
+    path = out / "wandb_links.json"
+    merged = json.loads(path.read_text()) if path.exists() else {}
+    merged.update(links)
+    path.write_text(json.dumps(merged, indent=2))
+    print(f"wrote {path} (scripts/export_results.py turns it into LaTeX macros)")
 
 
 if __name__ == "__main__":
