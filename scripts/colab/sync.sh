@@ -52,7 +52,9 @@ case "${1:-}" in
       if [[ ! -f "$tarf" ]]; then echo "[sync] nothing on Drive for ${p#*:}"; continue; fi
       echo "[sync] pull $(du -sh "$tarf" | cut -f1) Drive/${p#*:}.tar -> ${dst#"$REPO"/}"
       mkdir -p "$(dirname "$dst")"
-      tar -C "$(dirname "$dst")" --keep-newer-files -xf "$tarf" 2>&1 | grep -v "is newer or same age" || true
+      # --skip-old-files: files that already exist locally (this session's newer work) are kept;
+      # (--keep-newer-files fails on existing directories with "Unexpected inconsistency")
+      tar -C "$(dirname "$dst")" --skip-old-files -xf "$tarf"
     done ;;
   *) echo "usage: $0 push|pull [lilac|m3kg|results|all]" >&2; exit 1 ;;
 esac
