@@ -104,10 +104,14 @@ PY
   # Some releases ship archives or parquet + load.py instead of the LILaC layout.
   (cd "$dst" && for a in *.zip; do [[ -e "$a" ]] && unzip -q -n "$a"; done; \
                 for a in *.tar *.tar.gz *.tgz; do [[ -e "$a" ]] && tar -xf "$a"; done) || true
-  if [[ ! -d "$dst/parsed_documents/dev" && -f "$dst/load.py" ]]; then
+  # convert the parquet release; a sentinel file marks a finished conversion, so an interrupted
+  # one is redone from scratch instead of leaving a partial corpus behind
+  if [[ -f "$dst/load.py" && ! -f "$dst/.lilac_converted" ]]; then
+    rm -rf "$dst/parsed_documents/dev" "$dst/image_components/dev"
     (cd "$LILAC_ROOT" && in_env lilac-base python src/lilac/lcg_constructor/preprocessing/hf_mmcoqa_to_lilac.py \
         --hf_dir "datasets/$DATASET" --out_doc_dir "datasets/$DATASET/parsed_documents/dev" \
         --out_img_dir "datasets/$DATASET/image_components/dev")
+    touch "$dst/.lilac_converted"
   fi
   # The gold-labelled QA file is not in the official git repo (datasets/ is git-ignored).
   # The HF release ships the dev questions as dev.parquet: convert it (and check every gold
