@@ -70,7 +70,7 @@ def export(results: Path, out: Path, ds: str = "MMCoQA") -> None:
     # ---- LILaC: main row --------------------------------------------------
     g = "main"
     write(out, "lilac_main_row.tex",
-          f"\\lilac{{}}, Qwen2.5-7B-AWQ (ours) & {fmt(get(L, g, n('lilac_full'), 'paper_R@3'))} & "
+          f"\\lilac{{}}, Qwen2.5-7B (ours) & {fmt(get(L, g, n('lilac_full'), 'paper_R@3'))} & "
           f"{fmt(get(L, g, n('lilac_full'), 'paper_MRR@10'))} & {fmt(get(L, g, n('lilac_full'), 'strict_R@3'))} & "
           f"{fmt(get(L, g, n('lilac_full'), 'strict_MRR@10'))} \\\\")
 
@@ -125,7 +125,7 @@ def export(results: Path, out: Path, ds: str = "MMCoQA") -> None:
                     f"{fmt(s.get('decomp/avg_subqueries'), 2)} & {fmt(s.get('paper_R@3'))} & "
                     f"{fmt(meta.get('decomposition_ms_per_query'), 0)} \\\\")
     write(out, "lilac_decomp_rows.tex", "\n".join(rows) if rows else
-          f"Qwen2.5-7B-AWQ & {DASH} & {DASH} & {DASH} & {DASH} \\\\\n"
+          f"Qwen2.5-7B & {DASH} & {DASH} & {DASH} & {DASH} \\\\\n"
           f"Qwen2.5-14B-AWQ & {DASH} & {DASH} & {DASH} & {DASH} \\\\")
 
     # ---- M3KG: KG statistics ----------------------------------------------------
