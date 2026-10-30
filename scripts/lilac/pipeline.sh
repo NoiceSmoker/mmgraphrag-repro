@@ -107,12 +107,13 @@ PY
   # convert the parquet release; a sentinel file marks a finished conversion, so an interrupted
   # one is redone from scratch instead of leaving a partial corpus behind
   if [[ -f "$dst/load.py" && ! -f "$dst/.lilac_converted" ]]; then
-    rm -rf "$dst/parsed_documents/dev" "$dst/image_components/dev"
+    rm -rf "$dst/parsed_documents/dev" "$dst/image_components/dev" "$dst/QAs_dev_labeled.json"
     (cd "$LILAC_ROOT" && in_env lilac-base python src/lilac/lcg_constructor/preprocessing/hf_mmcoqa_to_lilac.py \
         --hf_dir "datasets/$DATASET" --out_doc_dir "datasets/$DATASET/parsed_documents/dev" \
         --out_img_dir "datasets/$DATASET/image_components/dev")
     touch "$dst/.lilac_converted"
   fi
+  echo "data: $(ls "$dst/parsed_documents/dev" | wc -l) documents, $(ls "$dst/image_components/dev" | wc -l) images"
   # The gold-labelled QA file is not in the official git repo (datasets/ is git-ignored).
   # The HF release ships the dev questions as dev.parquet: convert it (and check every gold
   # evidence against the documents); otherwise look for the file anywhere in the snapshot.

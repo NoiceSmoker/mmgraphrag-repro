@@ -55,14 +55,28 @@ def test_colab_sync_scopes(tmp_path):
     (lilac / "artifacts" / "MMCoQA" / "a.txt").write_text("a")
     work = REPO / "work"
     made_work = not work.exists()
-    env = dict(os.environ, LILAC_ROOT=str(lilac), DRIVE_DIR=str(tmp_path / "drive"),
+    (tmp_path / "drive").mkdir()
+    env = dict(os.environ, LILAC_ROOT=str(lilac), DRIVE_DIR=str(tmp_path / "drive" / "store"),
                MMRAG_RESULTS_DIR=str(tmp_path / "res"))
     try:
         out = subprocess.run(["bash", str(REPO / "scripts/colab/sync.sh"), "push", "lilac"], env=env,
                              capture_output=True, text=True)
         assert out.returncode == 0, out.stderr
-        assert (tmp_path / "drive/lilac/artifacts/MMCoQA/a.txt").read_text() == "a"
-        assert not (tmp_path / "drive/work").exists()
+        store = tmp_path / "drive" / "store"
+        assert (store / "lilac-artifacts-MMCoQA.tar").is_file() and not list(store.glob("m3kg-*"))
+        # pull restores the directory, but never overwrites newer local files
+        (lilac / "artifacts" / "MMCoQA" / "a.txt").write_text("newer")
+        (lilac / "artifacts" / "MMCoQA" / "b.txt").write_text("b")
+        import shutil
+        shutil.rmtree(lilac / "artifacts" / "MMCoQA" / "sub", ignore_errors=True)
+        out = subprocess.run(["bash", str(REPO / "scripts/colab/sync.sh"), "pull", "lilac"], env=env,
+                             capture_output=True, text=True)
+        assert out.returncode == 0, out.stderr
+        assert (lilac / "artifacts" / "MMCoQA" / "a.txt").read_text() == "newer"
+        (lilac / "artifacts" / "MMCoQA" / "a.txt").unlink()
+        subprocess.run(["bash", str(REPO / "scripts/colab/sync.sh"), "pull", "lilac"], env=env, check=True,
+                       capture_output=True)
+        assert (lilac / "artifacts" / "MMCoQA" / "a.txt").read_text() == "a"
         bad = subprocess.run(["bash", str(REPO / "scripts/colab/sync.sh"), "push", "nope"], env=env,
                              capture_output=True, text=True)
         assert bad.returncode != 0

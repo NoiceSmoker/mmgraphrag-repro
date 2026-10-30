@@ -199,11 +199,20 @@ def main() -> None:
     ap.add_argument("--max-pixels", type=int, default=1280 * 28 * 28)
     ap.add_argument("--chunk", type=int, default=64, help="images per vLLM call (results are flushed per chunk)")
     ap.add_argument("--gpu-mem", type=float, default=0.9)
+    ap.add_argument("--allow-model-change", action="store_true",
+                    help="resume although earlier outputs came from another VLM checkpoint")
     args = ap.parse_args()
-    vl = QwenVL(args.model, args.max_pixels, gpu_memory_utilization=args.gpu_mem)
-    # record which VLM produced the texts (the experiment runs log it to W&B)
+    # Outputs of different VLM weights must not be mixed (resumed runs skip finished images).
     out = official.artifact_dir(args.dataset)
     out.mkdir(parents=True, exist_ok=True)
+    meta_path = out / "vlm_meta.json"
+    if meta_path.exists() and not args.allow_model_change:
+        before = json.loads(meta_path.read_text()).get("model")
+        if before and before != args.model:
+            raise SystemExit(f"VLM outputs in {out} were produced by {before}, but this run uses {args.model}. "
+                             "Delete the artefacts (or start a fresh Drive store) or pass --allow-model-change.")
+    vl = QwenVL(args.model, args.max_pixels, gpu_memory_utilization=args.gpu_mem)
+    # record which VLM produced the texts (the experiment runs log it to W&B)
     (out / "vlm_meta.json").write_text(json.dumps({"model": args.model, "dtype": vllm_dtype(),
                                                    "max_pixels": args.max_pixels, "passes": args.passes}, indent=1))
     for p in args.passes:
