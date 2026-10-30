@@ -209,8 +209,12 @@ def main() -> None:
     if meta_path.exists() and not args.allow_model_change:
         before = json.loads(meta_path.read_text()).get("model")
         if before and before != args.model:
-            raise SystemExit(f"VLM outputs in {out} were produced by {before}, but this run uses {args.model}. "
-                             "Delete the artefacts (or start a fresh Drive store) or pass --allow-model-change.")
+            raise SystemExit(
+                f"VLM outputs in {out} were produced by {before}, but this run uses {args.model}.\n"
+                f"To start over with {args.model}, delete the old artefacts (local copy and Drive copy):\n"
+                f"    rm -rf '{out}'\n"
+                f"    rm -f /content/drive/MyDrive/mmgraphrag-repro-store/lilac-artifacts-{args.dataset}.tar\n"
+                "or pass --allow-model-change to keep them.")
     vl = QwenVL(args.model, args.max_pixels, gpu_memory_utilization=args.gpu_mem)
     # record which VLM produced the texts (the experiment runs log it to W&B)
     (out / "vlm_meta.json").write_text(json.dumps({"model": args.model, "dtype": vllm_dtype(),
