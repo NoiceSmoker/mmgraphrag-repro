@@ -8,6 +8,8 @@ export LILAC_ROOT="${LILAC_ROOT:-$REPO/third_party/lilac}"
 export MMRAG_RESULTS_DIR="${MMRAG_RESULTS_DIR:-$REPO/results}"
 export LILAC_CONDA_HOME="/nonexistent"     # official preamble: skip conda, use PATH python
 export TOKENIZERS_PARALLELISM=false
+export PYTHONUNBUFFERED=1          # live output when the notebook pipes a stage through sh()
+export PYTHONUNBUFFERED=1            # stream logs live in Colab (stdout is a pipe there, not a terminal)
 
 in_env() {
   local env="$1"; shift

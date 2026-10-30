@@ -30,15 +30,22 @@ case "$SCOPE" in
   *) echo "scope must be lilac, m3kg, results or all" >&2; exit 1 ;;
 esac
 
-# rsync if available (incremental), otherwise a plain recursive copy
-copy_dir() { if command -v rsync >/dev/null 2>&1; then rsync -a --info=stats1 "$1/" "$2/"; else cp -a "$1/." "$2/"; fi; }
+# rsync if available (incremental, with a progress line), otherwise a plain recursive copy
+copy_dir() {
+  if command -v rsync >/dev/null 2>&1; then rsync -a --info=progress2 "$1/" "$2/"; echo
+  else cp -a "$1/." "$2/"; fi
+}
+t0=$SECONDS
+[[ -d "$(dirname "$DRIVE_DIR")" ]] || echo "[sync] WARNING: Google Drive is not mounted ($(dirname "$DRIVE_DIR") missing)"
 
 case "${1:-}" in
   push)
     for p in "${pairs[@]}"; do src="${p%%:*}"; dst="$DRIVE_DIR/${p#*:}"
-      [[ -e "$src" ]] || continue; mkdir -p "$dst"; copy_dir "$src" "$dst"; done ;;
+      [[ -e "$src" ]] || continue; echo "[sync] push ${p#*:} -> Drive"; mkdir -p "$dst"; copy_dir "$src" "$dst"; done ;;
   pull)
     for p in "${pairs[@]}"; do dst="${p%%:*}"; src="$DRIVE_DIR/${p#*:}"
-      [[ -e "$src" ]] || continue; mkdir -p "$dst"; copy_dir "$src" "$dst"; done ;;
+      if [[ ! -e "$src" ]]; then echo "[sync] nothing on Drive for ${p#*:}"; continue; fi
+      echo "[sync] pull ${p#*:} <- Drive"; mkdir -p "$dst"; copy_dir "$src" "$dst"; done ;;
   *) echo "usage: $0 push|pull [lilac|m3kg|results|all]" >&2; exit 1 ;;
 esac
+echo "[sync] $1 $SCOPE done in $((SECONDS - t0)) s"

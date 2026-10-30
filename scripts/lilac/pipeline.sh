@@ -212,6 +212,8 @@ stage_experiments() {
 }
 
 for stage in "$@"; do
-  echo "=================== LILaC stage: $stage ==================="
+  echo "=================== LILaC stage: $stage ($(date '+%H:%M:%S')) ==================="
+  t_stage=$SECONDS
   "stage_$stage"
+  echo "=================== LILaC stage: $stage finished in $(( (SECONDS - t_stage) / 60 )) min $(( (SECONDS - t_stage) % 60 )) s"
 done

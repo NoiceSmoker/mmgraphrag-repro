@@ -48,6 +48,8 @@ stage_winrate()  { in_env vllm python -m mmrag.m3kg.vllm_stages winrate "${ARGS[
 stage_report()   { in_env m3kg-audio python -m mmrag.m3kg.report "${ARGS[@]}"; }
 
 for stage in "$@"; do
-  echo "=================== M3KG stage: $stage ==================="
+  echo "=================== M3KG stage: $stage ($(date '+%H:%M:%S')) ==================="
+  t_stage=$SECONDS
   "stage_$stage"
+  echo "=================== M3KG stage: $stage finished in $(( (SECONDS - t_stage) / 60 )) min $(( (SECONDS - t_stage) % 60 )) s"
 done
