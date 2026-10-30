@@ -47,8 +47,20 @@ in_mmembed() {
 ensure_mmembed() {
   in_env lilac-base python - "$LILAC_ROOT/models/MM-Embed" <<'PY'
 import sys
-from huggingface_hub import snapshot_download
+from huggingface_hub import hf_hub_download, snapshot_download
 print("MM-Embed weights ->", snapshot_download("nvidia/MM-Embed", local_dir=sys.argv[1]))
+# MM-Embed builds its language model from the config of nvidia/NV-Embed-v1, a gated repository
+try:
+    hf_hub_download("nvidia/NV-Embed-v1", "config.json")
+except Exception as exc:
+    if "Gated" not in type(exc).__name__ and "403" not in str(exc):
+        raise
+    sys.exit("\n!! MM-Embed needs the gated repository nvidia/NV-Embed-v1 (only its config and code).\n"
+             "   1. Log in to huggingface.co with the account of your HF_TOKEN.\n"
+             "   2. Open https://huggingface.co/nvidia/NV-Embed-v1 and accept the conditions (granted immediately).\n"
+             "   3. If HF_TOKEN is a fine-grained token, enable 'Read access to contents of all public gated\n"
+             "      repos you can access' in its settings (or use a classic 'read' token).\n"
+             "   Then run this cell again.")
 PY
 }
 
