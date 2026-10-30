@@ -85,11 +85,14 @@ PY
 }
 
 stage_fetch() {
-  if [[ ! -d "$LILAC_ROOT/.git" ]]; then
-    git clone https://github.com/joohyung00/lilac.git "$LILAC_ROOT"
-  fi
-  git -C "$LILAC_ROOT" fetch --depth 1 origin "$PINNED_COMMIT" 2>/dev/null || true
-  git -C "$LILAC_ROOT" checkout -q "$PINNED_COMMIT"
+  # init + fetch instead of clone: works when the directory already exists and is not empty
+  # (e.g. datasets/ or models/ were restored or downloaded into it first)
+  mkdir -p "$LILAC_ROOT"
+  if [[ ! -d "$LILAC_ROOT/.git" ]]; then git -C "$LILAC_ROOT" init -q; fi
+  git -C "$LILAC_ROOT" remote get-url origin >/dev/null 2>&1 \
+    || git -C "$LILAC_ROOT" remote add origin https://github.com/joohyung00/lilac.git
+  git -C "$LILAC_ROOT" fetch -q --depth 1 origin "$PINNED_COMMIT" || git -C "$LILAC_ROOT" fetch -q origin
+  git -C "$LILAC_ROOT" checkout -q -f "$PINNED_COMMIT"   # untracked data (datasets/, artifacts/, models/) is kept
   echo "official LILaC at $(git -C "$LILAC_ROOT" rev-parse --short HEAD) in $LILAC_ROOT"
 }
 
