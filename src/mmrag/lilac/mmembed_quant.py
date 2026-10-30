@@ -144,27 +144,39 @@ def load_model_quantized(self) -> None:
 
 
 def oom_safe_encode(encode):
-    """Wrap ``model.encode(inputs, ...)``: split the batch on CUDA OOM."""
+    """Wrap ``model.encode(inputs, ...)``: split the batch on CUDA OOM.
+
+    The retry happens *outside* the ``except`` block: while the exception is
+    alive its traceback keeps the failed attempt's activations on the GPU, so
+    retrying inside the handler leaves the halves with even less memory.
+    """
 
     def wrapped(inputs, *args, **kwargs):
+        import gc
+
         import torch
 
-        try:
-            return encode(inputs, *args, **kwargs)
-        except torch.cuda.OutOfMemoryError:
-            if len(inputs) <= 1:
-                raise
+        for attempt in (0, 1):
+            try:
+                return encode(inputs, *args, **kwargs)
+            except torch.cuda.OutOfMemoryError:
+                pass                      # leave the handler first: frees the failed attempt
+            gc.collect()
             torch.cuda.empty_cache()
-            mid = len(inputs) // 2
-            parts = []
-            for sl in (slice(0, mid), slice(mid, None)):
-                kw = dict(kwargs)
-                instr = kw.get("instruction")
-                if isinstance(instr, (list, tuple)) and len(instr) == len(inputs):
-                    kw["instruction"] = list(instr)[sl]
-                parts.append(wrapped(inputs[sl], *args, **kw)["hidden_states"])
-            print(f"{_TAG} out of memory on a batch of {len(inputs)} - encoded it in two halves", flush=True)
-            return {"hidden_states": torch.cat(parts, dim=0)}
+            if len(inputs) > 1:
+                break                     # split below
+        else:                             # a single input failed twice
+            raise torch.cuda.OutOfMemoryError(f"{_TAG} one input does not fit in GPU memory")
+        mid = len(inputs) // 2
+        parts = []
+        for sl in (slice(0, mid), slice(mid, None)):
+            kw = dict(kwargs)
+            instr = kw.get("instruction")
+            if isinstance(instr, (list, tuple)) and len(instr) == len(inputs):
+                kw["instruction"] = list(instr)[sl]
+            parts.append(wrapped(inputs[sl], *args, **kw)["hidden_states"])
+        print(f"{_TAG} out of memory on a batch of {len(inputs)} - encoded it in two halves", flush=True)
+        return {"hidden_states": torch.cat(parts, dim=0)}
 
     wrapped.__wrapped__ = encode
     return wrapped

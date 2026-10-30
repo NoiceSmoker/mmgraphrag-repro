@@ -159,3 +159,17 @@ def test_guard_keeps_official_loader_but_scales_batches(fake_official):
     assert res["parent"] == res["child"] == "load_model"        # official loader, wrapped
     assert "LOAD: official fp16 loader called" in out.stdout
     assert res["batch"] == 16 and "1 of 16 embeddings are zero vectors" in out.stdout
+
+
+def test_oom_retry_happens_outside_the_handler():
+    """A single input gets a second attempt after the failed one was released."""
+    state = {"n": 0}
+
+    def flaky(inputs, **k):
+        state["n"] += 1
+        if state["n"] == 1:
+            raise torch.cuda.OutOfMemoryError("first try")
+        return {"hidden_states": torch.ones(len(inputs), 2)}
+
+    out = mq.oom_safe_encode(flaky)([0])
+    assert state["n"] == 2 and out["hidden_states"].shape == (1, 2)

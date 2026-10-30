@@ -39,7 +39,8 @@ all_tags() { for p in $DECOMPOSERS; do echo -n "${p%%=*} "; done; }
 # spawn workers) install the MM-Embed hook: OOM-safe encoding and zero-vector reports always,
 # plus the quantized loader when MMEMBED_QUANT is set.
 in_mmembed() {
-  MMEMBED_GUARD=1 PYTHONPATH="$REPO/src/mmrag/lilac/_site${PYTHONPATH:+:$PYTHONPATH}" in_env mmembed "$@"
+  MMEMBED_GUARD=1 PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}" \
+    PYTHONPATH="$REPO/src/mmrag/lilac/_site${PYTHONPATH:+:$PYTHONPATH}" in_env mmembed "$@"
 }
 
 # MM-Embed checkpoint where the official loader expects it (models/MM-Embed, ~16.4 GB);
