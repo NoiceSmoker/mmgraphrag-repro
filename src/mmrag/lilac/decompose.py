@@ -215,6 +215,12 @@ def main() -> None:
     elif args.activate_only:
         activate_decomposition(args.dataset, args.tag)
     else:
+        meta = variant_dir(args.dataset, args.tag) / "meta.json"
+        if meta.exists() and read_json(meta).get("model") == args.model:
+            print(f"[decompose] variant '{args.tag}' ({args.model}) already exists - skip")
+            if not args.no_activate:
+                activate_decomposition(args.dataset, args.tag)
+            return
         run(args.dataset, args.model, args.tag, args.quantization, args.latency_probe, not args.no_activate)
 
 

@@ -151,6 +151,11 @@ stage_vlm() {
 }
 
 stage_graph() {
+  # The official steps edit artifacts/<DS>/parsed_documents in place and are not idempotent,
+  # so an unfinished build is restarted from the seed; a finished one is skipped.
+  local art="$LILAC_ROOT/artifacts/$DATASET"
+  if [[ -f "$art/.graph_done" ]]; then echo "graph: already built - skip"; return 0; fi
+  rm -rf "$art/parsed_documents" "$art/components" "$art/edges" "$art/temp" "$art/embeddings/serializations"
   cd "$LILAC_ROOT"
   in_env lilac-base bash scripts/parse_multimodal_document/step1_dereference.sh -b "$DATASET"
   in_env lilac-base bash scripts/parse_multimodal_document/step2_add_table_segments.sh -b "$DATASET"
@@ -160,6 +165,8 @@ stage_graph() {
       --target_data "$DATASET" --analyzer qwen_bbox --mode add_to_parsed_documents
   in_env lilac-base bash scripts/parse_multimodal_document/step6_add_edges.sh -b "$DATASET"
   in_env lilac-base bash scripts/parse_multimodal_document/step7_serialize_components.sh -b "$DATASET"
+  touch "$art/.graph_done"
+  cd "$REPO"
 }
 
 stage_embed() {
@@ -191,6 +198,10 @@ stage_decompose_embed() {
   mmembed_meta check
   for pair in $DECOMPOSERS; do
     local tag="${pair%%=*}"
+    if in_env lilac-base python -c "import sys; from mmrag.lilac.decompose import emb_variant_dir, SUBQ_EMB_FILES as F; \
+d = emb_variant_dir('$DATASET', '$tag'); sys.exit(0 if all((d / f).exists() for f in F) else 1)"; then
+      echo "decompose_embed: '$tag' already embedded - skip"; continue
+    fi
     in_env lilac-base python -m mmrag.lilac.decompose --dataset "$DATASET" --tag "$tag" --activate-only
     (cd "$LILAC_ROOT" && CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}" in_mmembed \
         python src/lilac/retriever/query_decomposer/queryset_embedder_mmembed.py --target_data "$DATASET")
