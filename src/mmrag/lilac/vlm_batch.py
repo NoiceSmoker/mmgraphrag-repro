@@ -191,6 +191,26 @@ def caption_crops(vl: QwenVL, dataset: str, chunk: int, max_tokens: int) -> None
             c.with_suffix(".txt").write_text(txt.strip(), encoding="utf-8")
 
 
+def pending(dataset: str, passes: list[str]) -> int:
+    """Number of images / crops still to process (so a finished stage does not load the VLM)."""
+    art = official.artifact_dir(dataset)
+    imgs = list_images(dataset)
+    n = 0
+    if "summarize" in passes:
+        n += sum(not (art / "image_summaries" / "dev" / f"{p.stem}.txt").exists() for p in imgs)
+    sub_root = art / "image_components_sub" / "dev"
+    missing_det = sum(not (sub_root / p.stem / "detections.json").exists() for p in imgs)
+    if "detect" in passes:
+        n += missing_det
+    if "caption-crops" in passes:
+        if missing_det:
+            n += 1
+        elif sub_root.exists():
+            n += sum(1 for d in sub_root.iterdir() if d.is_dir() for c in d.glob("*.png")
+                     if c.name.lower() != "boxed.png" and not c.with_suffix(".txt").exists())
+    return n
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("passes", nargs="+", choices=["summarize", "detect", "caption-crops"])
@@ -215,6 +235,10 @@ def main() -> None:
                 f"    rm -rf '{out}'\n"
                 f"    rm -f /content/drive/MyDrive/mmgraphrag-repro-store/lilac-artifacts-{args.dataset}.tar\n"
                 "or pass --allow-model-change to keep them.")
+    todo = pending(args.dataset, args.passes)
+    if todo == 0:
+        print("[vlm] all images and crops already processed - nothing to do")
+        return
     vl = QwenVL(args.model, args.max_pixels, gpu_memory_utilization=args.gpu_mem)
     # record which VLM produced the texts (the experiment runs log it to W&B)
     (out / "vlm_meta.json").write_text(json.dumps({"model": args.model, "dtype": vllm_dtype(),

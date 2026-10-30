@@ -1,9 +1,12 @@
 """Single-GPU wrappers around official LILaC steps.
 
 * ``step3``: the official sentence splitter hard-codes ``num_gpus=4``
-  (``SentenceAdder.parallel_sentence_split``); on a one-GPU Colab VM the
-  workers for cuda:1..3 crash. We patch the default to the number of
-  visible GPUs (or 1 process on CPU) and call the official ``main``.
+  (``SentenceAdder.parallel_sentence_split``) and forks one worker per GPU.
+  On a one-GPU VM the workers for cuda:1..3 crash, and a forked worker
+  cannot use CUDA once the parent has touched it. With one GPU (or none) we
+  run the official worker in-process through a tiny stand-in for
+  ``multiprocessing`` (same function, same outputs); with several GPUs the
+  official processes are started with ``spawn``.
 * ``embed-extra``: embed an arbitrary serialisation file with the official
   MM-Embed wrapper (used by the no-VLM-text ablation).
 
@@ -30,12 +33,41 @@ def _n_gpus() -> int:
         return 1
 
 
+class _InlineProcess:
+    """multiprocessing.Process stand-in that runs the target in this process."""
+
+    def __init__(self, target, args=(), kwargs=None):
+        self._target, self._args, self._kwargs = target, args, kwargs or {}
+
+    def start(self):
+        self._target(*self._args, **self._kwargs)
+
+    def join(self, timeout=None):
+        return None
+
+
+class _InlineMP:
+    """Just the parts of ``torch.multiprocessing`` used by the official step 3."""
+
+    Process = _InlineProcess
+
+    class Manager:
+        def dict(self):
+            return {}
+
+
 def step3(dataset: str) -> None:
     official.ensure_importable()
     import src.lilac.lcg_constructor.step3_add_sentences as s3
 
     n = _n_gpus()
     s3.SentenceAdder.parallel_sentence_split.__defaults__ = (n, 1)
+    if n == 1:
+        s3.mp = _InlineMP          # official worker, run in-process: no fork after CUDA init
+    else:
+        import torch.multiprocessing as tmp
+
+        tmp.set_start_method("spawn", force=True)
     if not _has_cuda():
         _orig_worker = s3.SentenceAdder.worker
 
