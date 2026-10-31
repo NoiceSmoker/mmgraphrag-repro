@@ -31,6 +31,33 @@ def test_export_with_results(tmp_path):
     assert "\\url{https://wandb.ai/x/y/reports/z}" in (tmp_path / "out" / "wandb_links.tex").read_text()
 
 
+def test_export_breakdown_and_kg_cost(tmp_path):
+    """Coinciding evidence/page splits are merged; a resumed KG run reports total calls, no time."""
+    res = tmp_path / "results"
+    abl = res / "lilac-repro" / "ablation"
+    abl.mkdir(parents=True)
+    split = {"evidence=single/n": 9, "evidence=single/paper_R@3": 50.0, "evidence=multi/n": 2,
+             "evidence=multi/paper_R@3": 40.0, "docs=single/n": 9, "docs=single/paper_R@3": 50.0,
+             "docs=multi/n": 2, "docs=multi/paper_R@3": 40.0, "modality=image/n": 3, "modality=image/paper_R@3": 10.0}
+    for v in ("wo_lcg_qd", "wo_qd", "full", "full_novlm"):
+        (abl / f"MMCoQA-{v}.json").write_text(json.dumps(
+            {"group": "ablation", "name": f"MMCoQA-{v}", "config": {}, "summary": split}))
+    kg = res / "m3kg-rag-repro" / "kg"
+    kg.mkdir(parents=True)
+    (kg / "kg-build.json").write_text(json.dumps(
+        {"group": "kg", "name": "kg-build", "config": {},
+         "summary": {"n_clips": 100, "n_clips_without_triples": 20, "llm_calls": 10, "llm_cached": 990,
+                     "time/extract_s": 6.0, "entity_desc_src": {"none": 3, "wikipedia": 1}}}))
+    export_results.export(res, tmp_path / "out")
+    rows = (tmp_path / "out" / "lilac_breakdown_rows.tex").read_text()
+    assert "across web pages" not in rows and "$\\geq$2 pages & 2 & 40.0 & 40.0 & 40.0 & 40.0" in rows
+    assert "image evidence & 3 & 10.0" in rows
+    kg_rows = (tmp_path / "out" / "m3kg_kg_rows.tex").read_text()
+    assert "LLM calls (all agents) & 1000" in kg_rows and "construction time" not in kg_rows
+    assert "clips without any triple (\\%) & 20.0" in kg_rows
+    assert "final description (\\%) & 25.0" in kg_rows
+
+
 def test_wandb_report_objects_build(monkeypatch):
     import wandb_workspaces.reports.v2 as wr
 

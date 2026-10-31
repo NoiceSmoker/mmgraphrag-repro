@@ -88,13 +88,29 @@ def export(results: Path, out: Path, ds: str = "MMCoQA") -> None:
                     f"{delta(L, g, n(k), 'wo_lcg_qd', 'paper_R@3') if k != 'wo_lcg_qd' else DASH} \\\\")
     write(out, "lilac_ablation_rows.tex", "\n".join(rows))
 
-    # ---- LILaC: breakdown (full vs kNN) ----------------------------------
-    rows = []
-    for key, lab in [("docs=single", "evidence in one webpage"), ("docs=multi", "evidence across webpages"),
-                     ("evidence=single", "one gold component"), ("evidence=multi", "$\\geq$2 gold components")]:
+    # ---- LILaC: breakdown (kNN, w/o QD, full, no VLM text) -------------------
+    variants = ("wo_lcg_qd", "wo_qd", "full", "full_novlm")
+
+    def brow(key, lab):
         cnt = get(L, g, n("full"), f"{key}/n")
-        rows.append(f"{lab} & {fmt(cnt, 0)} & {fmt(get(L, g, n('wo_lcg_qd'), f'{key}/paper_R@3'))} & "
-                    f"{fmt(get(L, g, n('wo_qd'), f'{key}/paper_R@3'))} & {fmt(get(L, g, n('full'), f'{key}/paper_R@3'))} \\\\")
+        cells = " & ".join(fmt(get(L, g, n(v), f"{key}/paper_R@3")) for v in variants)
+        return f"{lab} & {fmt(cnt, 0)} & {cells} \\\\"
+
+    def same_split(a, b):  # e.g. every multi-component question also spans several pages
+        return all(get(L, g, n(v), f"{a}/n") == get(L, g, n(v), f"{b}/n") and
+                   get(L, g, n(v), f"{a}/paper_R@3") == get(L, g, n(v), f"{b}/paper_R@3") for v in variants)
+
+    if get(L, g, n("full"), "docs=multi/n") is not None and same_split("docs=multi", "evidence=multi"):
+        rows = [brow("evidence=single", "one gold component"),
+                brow("evidence=multi", "$\\geq$2 components, $\\geq$2 pages")]
+    else:
+        rows = [brow("docs=single", "evidence in one web page"), brow("docs=multi", "evidence across web pages"),
+                brow("evidence=single", "one gold component"), brow("evidence=multi", "$\\geq$2 gold components")]
+    mods = [("text", "text evidence"), ("table", "table evidence"), ("image", "image evidence"),
+            ("image+table", "image and table evidence")]
+    mod_rows = [brow(f"modality={m}", lab) for m, lab in mods if get(L, g, n("full"), f"modality={m}/n")]
+    if mod_rows:
+        rows += ["\\midrule"] + mod_rows
     write(out, "lilac_breakdown_rows.tex", "\n".join(rows))
 
     # ---- LILaC: beam width (pgfplots) ----------------------------------------
@@ -134,16 +150,29 @@ def export(results: Path, out: Path, ds: str = "MMCoQA") -> None:
         return sum(t) / 60 if t else None
 
     s = M.get("kg", {}).get("kg-build", {}).get("summary", {})
+    srcs = s.get("entity_desc_src") or {}
+    n_ment = sum(srcs.values()) if isinstance(srcs, dict) else 0
+    calls, cached = s.get("llm_calls"), s.get("llm_cached") or 0
+    total_calls = (calls or 0) + cached if calls is not None else None
     kg_rows = [("clips in corpus", s.get("n_clips"), 0), ("triples", s.get("n_triplets"), 0),
-               ("triples per clip", s.get("triplets_per_clip"), 2), ("unique concepts", s.get("n_concepts"), 0),
+               ("triples per clip", s.get("triplets_per_clip"), 2),
+               ("clips without any triple (\\%)",
+                100 * s["n_clips_without_triples"] / s["n_clips"] if s.get("n_clips") and
+                s.get("n_clips_without_triples") is not None else None, 1),
+               ("unique concepts", s.get("n_concepts"), 0),
                ("concepts found in Wikipedia/Wiktionary (\\%)", _pct(s.get("concepts_kb_hit_rate")), 1),
                ("descriptions accepted at first inspection (\\%)", _pct(s.get("inspector_first_pass_rate")), 1),
                ("descriptions discarded by the inspector (\\%)", _pct(s.get("inspector_discard_rate")), 1),
+               ("entity mentions with a final description (\\%)",
+                100 * (1 - srcs.get("none", 0) / n_ment) if n_ment else None, 1),
                ("concepts shared by $\\geq$2 clips (\\%)", _pct(s.get("concepts_shared_by_clips_frac")), 1),
                ("largest connected component (\\% of nodes)", _pct(s.get("largest_component_frac")), 1),
                ("captions rewritten with video metadata", s.get("n_rewritten_captions"), 0),
-               ("LLM calls (all agents)", s.get("llm_calls"), 0),
-               ("construction time, GPU stages (min)", _minutes(s), 1)]
+               ("LLM calls (all agents)", total_calls, 0)]
+    # Wall-clock time is only meaningful if the logged run did the work itself; a resumed run
+    # answers most calls from the cache and its timings would understate the cost.
+    if calls is not None and cached <= calls:
+        kg_rows.append(("construction time, GPU stages (min)", _minutes(s), 1))
     write(out, "m3kg_kg_rows.tex", "\n".join(f"{a} & {fmt(v, nd)} \\\\" for a, v, nd in kg_rows))
 
     # ---- M3KG: main --------------------------------------------------------------
